@@ -1,0 +1,25 @@
+version: '3'
+
+tasks:
+  start-talos:
+    cmds:
+    - docker-compose up -d
+
+  stop-talos:
+    cmds:
+    - docker-compose down
+
+  gen-config:
+    cmds:
+    - mkdir -p _out
+    - talosctl gen config workshop https://172.20.0.100:6443 --with-docs=false --with-examples=false --output _out --force
+
+  apply-config:
+    cmds:
+    - talosctl apply-config -f _out/controlplane.yaml -n 172.20.0.100 --insecure
+    - talosctl apply-config -f _out/worker.yaml -n 172.20.0.150 --insecure
+
+  bootstrap:
+    cmds:
+    - talosctl bootstrap --talosconfig _out/talosconfig -n 172.20.0.100
+  

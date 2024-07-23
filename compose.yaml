@@ -1,5 +1,13 @@
 name: talos-workshop
 
+networks:
+  talos-workshop:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.20.0.0/24"
+          gateway: "172.20.0.1"
+
 volumes:
   cp-state:
   worker-state:
@@ -32,7 +40,7 @@ services:
       - /tmp
     networks:
       talos-workshop:
-        ipv4_address: 172.28.0.2
+        ipv4_address: 172.20.0.100
 
   talos-worker:
     image: ghcr.io/siderolabs/talos:v1.7.4
@@ -61,11 +69,4 @@ services:
       - /tmp
     networks:
       talos-workshop:
-        ipv4_address: 172.28.0.3
-
-networks:
-  talos-workshop:
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.28.0.0/24
+        ipv4_address: 172.20.0.150

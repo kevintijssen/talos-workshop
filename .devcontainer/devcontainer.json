@@ -7,7 +7,9 @@
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/rio/features/k9s": {},
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
-      "minikube": "none"
-    }
+      "minikube": "none",
+      "helm": "none"
+    },
+    "ghcr.io/devcontainers-contrib/features/go-task:1": {}
   }
 }
