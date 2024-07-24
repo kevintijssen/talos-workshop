@@ -1,25 +1,117 @@
 version: '3'
 
+
+
 tasks:
   start-talos:
+    silent: true
+    aliases: [up]
     cmds:
-    - docker-compose up -d
+    - gum spin --show-error --title="Starting Talos containers..." -- docker-compose up -d
+    - echo "Talos containers started"
 
   stop-talos:
+    silent: true
+    aliases: [down]
     cmds:
-    - docker-compose down
+    - gum spin --show-error --title="Stopping Talos containers..." -- docker-compose down
+    - echo "Talos containers stopped"
 
   gen-config:
+    silent: true
     cmds:
-    - mkdir -p _out
-    - talosctl gen config workshop https://172.20.0.100:6443 --with-docs=false --with-examples=false --output _out --force
+    - gum spin --show-error --title="Generate Talos Config..." -- talosctl gen config workshop https://{{.IP_CP}}:6443 --with-docs=false --with-examples=false --force
+    - echo "Talos config created"
+    vars:
+      IP_CP:
+        sh: docker inspect talos-cp | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
+
+  docker-patch:
+    silent: true
+    cmds:
+    - |
+      gum spin --show-error --title="Creating Talos patch for Docker" -- \
+      echo "machine:
+        features:
+          hostDNS:
+            forwardKubeDNSToHost: true" > patch-docker.yaml
+    - echo "Talos patch for Docker created"
+
+  update-talos-config:
+    silent: true
+    env:
+      TALOSCONFIG: ./talosconfig
+    cmds:
+    - talosctl config node {{.IP_CP}}
+    - talosctl config endpoint {{.IP_CP}}
+    vars:
+      IP_CP:
+        sh: docker inspect talos-cp | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
 
   apply-config:
+    silent: true
     cmds:
-    - talosctl apply-config -f _out/controlplane.yaml -n 172.20.0.100 --insecure
-    - talosctl apply-config -f _out/worker.yaml -n 172.20.0.150 --insecure
+    - gum spin --show-error --title="Applying Talos Controlplane config..." -- talosctl apply-config -f controlplane.yaml -n {{.IP_CP}} -p @patch-docker.yaml --insecure
+    - echo "Talos Controlplane config applied on {{.IP_CP}}"
+    - gum spin --show-error --title="Applying Talos Worker config..." -- talosctl apply-config -f worker.yaml -n {{.IP_WRK}} -p @patch-docker.yaml --insecure
+    - echo "Talos Worker config applied on {{.IP_WRK}}"
+    vars:
+      IP_CP:
+        sh: docker inspect talos-cp | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
+      IP_WRK:
+        sh: docker inspect talos-worker | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
+    status:
+      - docker logs talos-cp | grep -m1 "entering maintenance service"
+      - docker logs talos-worker | grep -m1 "entering maintenance service"
 
   bootstrap:
+    silent: true
+    env:
+      TALOSCONFIG: ./talosconfig
     cmds:
-    - talosctl bootstrap --talosconfig _out/talosconfig -n 172.20.0.100
-  
+    - |
+      gum spin --show-error --title="Bootstrapping Talos cluster..." -- \
+      sleep 10; talosctl bootstrap; talosctl health
+    vars:
+      IP_CP:
+        sh: docker inspect talos-cp | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
+
+  download-kubeconfig:
+    silent: true
+    env:
+      TALOSCONFIG: ./talosconfig
+    cmds:
+    - talosctl kubeconfig --force
+    - kubectl get nodes
+
+
+  reset-talos:
+    silent: true
+    cmds:
+      - gum spin --show-error --title="Deleting Talos config..." -- rm -rf talosconfig controlplane.yaml worker.yaml patch-docker.yaml
+      - echo "Talos config deleted"
+
+  reset-docker:
+    silent: true
+    cmds:
+      - task: stop-talos
+      - gum spin --show-error --title="Deleting Docker volumes..." -- docker volume prune --all --force
+      - echo "Docker volumes deleted"
+
+  reset-all:
+    silent: true
+    cmds:
+     - task: reset-docker
+     - task: reset-talos
+
+  AIO:
+    silent:
+    cmds:
+    - task: reset-all
+    - task: start-talos
+    - task: gen-config
+    - task: docker-patch
+    - task: update-talos-config
+    - task: apply-config
+    - task: bootstrap
+    - task: download-kubeconfig
