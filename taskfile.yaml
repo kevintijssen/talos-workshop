@@ -1,7 +1,5 @@
 version: '3'
 
-
-
 tasks:
   start-talos:
     silent: true
@@ -20,7 +18,7 @@ tasks:
   gen-config:
     silent: true
     cmds:
-    - gum spin --show-error --title="Generate Talos Config..." -- talosctl gen config workshop https://{{.IP_CP}}:6443 --with-docs=false --with-examples=false --force
+    - gum spin --show-error --title="Generate Talos Config..." -- talosctl gen config workshop https://{{.IP_CP}}:6443 --with-docs=false --with-examples=false --kubernetes-version=1.29.7 --force
     - echo "Talos config created"
     vars:
       IP_CP:
@@ -30,14 +28,14 @@ tasks:
     silent: true
     cmds:
     - |
-      gum spin --show-error --title="Creating Talos patch for Docker" -- \
+      gum spin --show-error --title="Creating Talos patch for Docker..." -- \
       echo "machine:
         features:
           hostDNS:
             forwardKubeDNSToHost: true" > patch-docker.yaml
     - echo "Talos patch for Docker created"
 
-  update-talos-config:
+  update-talosconfig:
     silent: true
     env:
       TALOSCONFIG: ./talosconfig
@@ -51,7 +49,7 @@ tasks:
   apply-config:
     silent: true
     cmds:
-    - gum spin --show-error --title="Applying Talos Controlplane config..." -- talosctl apply-config -f controlplane.yaml -n {{.IP_CP}} -p @patch-docker.yaml --insecure
+    - gum spin --show-error --title="Applying Talos Controlplane config..." -- sleep 5 && talosctl apply-config -f controlplane.yaml -n {{.IP_CP}} -p @patch-docker.yaml --insecure
     - echo "Talos Controlplane config applied on {{.IP_CP}}"
     - gum spin --show-error --title="Applying Talos Worker config..." -- talosctl apply-config -f worker.yaml -n {{.IP_WRK}} -p @patch-docker.yaml --insecure
     - echo "Talos Worker config applied on {{.IP_WRK}}"
@@ -60,9 +58,6 @@ tasks:
         sh: docker inspect talos-cp | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
       IP_WRK:
         sh: docker inspect talos-worker | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
-    status:
-      - docker logs talos-cp | grep -m1 "entering maintenance service"
-      - docker logs talos-worker | grep -m1 "entering maintenance service"
 
   bootstrap:
     silent: true
@@ -71,12 +66,9 @@ tasks:
     cmds:
     - |
       gum spin --show-error --title="Bootstrapping Talos cluster..." -- \
-      sleep 10; talosctl bootstrap; talosctl health
-    vars:
-      IP_CP:
-        sh: docker inspect talos-cp | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
+      sleep 10 && talosctl bootstrap; talosctl health
 
-  download-kubeconfig:
+  get-kubeconfig:
     silent: true
     env:
       TALOSCONFIG: ./talosconfig
@@ -84,6 +76,36 @@ tasks:
     - talosctl kubeconfig --force
     - kubectl get nodes
 
+##################################
+
+  upgrade-talos:
+    silent: true
+    env:
+      TALOS_VERSION: 1.7.5
+    cmds:
+      - echo "Change Talos version to $TALOS_VERSION"
+      - sed -i 's/1.7.4/'"$TALOS_VERSION"'/g' compose.yaml 
+      - |
+        gum spin --show-error --title="Upgrading Controlplane..." -- \
+        docker compose up -d talos-cp && echo "Waiting for the Controlplane node to be Ready..." && while ! kubectl get nodes talos-cp -o jsonpath='{.status.nodeInfo.osImage}' 2> /dev/null | grep -q '1.7.5' ; do sleep 5; done
+      - echo "Upgrade of Controlplane completed!"
+      - |
+        gum spin --show-error --title="Upgrading Worker..." -- \
+        docker compose up -d talos-worker && echo "Waiting for the Worker node to be Ready..." && while ! kubectl get nodes talos-worker -o jsonpath='{.status.nodeInfo.osImage}' 2> /dev/null | grep -q '1.7.5'; do sleep 5; done
+      - echo "Upgrade of Worker completed!" 
+
+
+  upgrade-k8s:
+    silent: true
+    cmds:
+      - |
+        echo "To which Kubernetes version do you want to upgrade?"
+        K8S_VERSION=$(gum choose "1.30.3" "1.30.2" "1.30.1" "1.30.0")
+        echo "Started Kubernetes upgrade $K8S_VERSION"
+        talosctl upgrade-k8s --to=$K8S_VERSION
+
+
+##################################
 
   reset-talos:
     silent: true
@@ -97,6 +119,8 @@ tasks:
       - task: stop-talos
       - gum spin --show-error --title="Deleting Docker volumes..." -- docker volume prune --all --force
       - echo "Docker volumes deleted"
+      - gum spin --show-error --title="Restoring original compose.yaml..." -- git restore compose.yaml
+      - echo "compose.yaml restored"
 
   reset-all:
     silent: true
@@ -111,7 +135,7 @@ tasks:
     - task: start-talos
     - task: gen-config
     - task: docker-patch
-    - task: update-talos-config
+    - task: update-talosconfig
     - task: apply-config
     - task: bootstrap
-    - task: download-kubeconfig
+    - task: get-kubeconfig
