@@ -45,11 +45,13 @@ tasks:
     env:
       TALOSCONFIG: ./talosconfig
     cmds:
-    - talosctl config node {{.IP_CP}}
     - talosctl config endpoint {{.IP_CP}}
+    - talosctl config node {{.IP_CP}},{{.IP_WRK}}
     vars:
       IP_CP:
         sh: docker inspect talos-cp | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
+      IP_WRK:
+        sh: docker inspect talos-worker | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
 
   apply-config:
     silent: true
