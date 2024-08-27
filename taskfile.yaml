@@ -46,12 +46,10 @@ tasks:
       TALOSCONFIG: ./talosconfig
     cmds:
     - talosctl config endpoint {{.IP_CP}}
-    - talosctl config node {{.IP_CP}},{{.IP_WRK}}
+    - talosctl config node {{.IP_CP}}
     vars:
       IP_CP:
         sh: docker inspect talos-cp | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
-      IP_WRK:
-        sh: docker inspect talos-worker | jq -r '.[].NetworkSettings.Networks."talos-workshop_talos-workshop".IPAddress'
 
   apply-config:
     silent: true
@@ -133,7 +131,7 @@ tasks:
     desc: "Reset the Talos-Workshop without confimation"
     cmds:
       - task: stop-talos
-      - gum spin --show-error --title="Deleting Docker volumes..." -- docker volume prune --all --force
+      - gum spin --show-error --title="Deleting Docker volumes..." -- docker volume rm $(docker volume ls -q | grep talos)
       - echo "Docker volumes deleted"
       - gum spin --show-error --title="Restoring original compose.yaml..." -- git restore compose.yaml
       - echo "compose.yaml restored"

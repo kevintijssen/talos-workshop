@@ -25,13 +25,14 @@ volumes:
   worker_opt:
   worker_system-state:
 
+
 services:
   talos-cp:
-    image: ghcr.io/siderolabs/talos:v1.7.5
+    image: ghcr.io/siderolabs/talos:v1.7.4
     hostname: talos-cp
     container_name: talos-cp
     environment:
-        - PLATFORM=container
+      - PLATFORM=container
     read_only: true
     privileged: true
     security_opt:
@@ -52,11 +53,11 @@ services:
         ipv4_address: 172.20.0.100
 
   talos-worker:
-    image: ghcr.io/siderolabs/talos:v1.7.5
+    image: ghcr.io/siderolabs/talos:v1.7.4
     hostname: talos-worker
     container_name: talos-worker
     environment:
-        - PLATFORM=container
+      - PLATFORM=container
     read_only: true
     privileged: true
     security_opt:
