@@ -90,19 +90,19 @@ tasks:
 
   upgrade-talos:
     silent: true
-    desc: "Upgrade your Talos version to 1.7.5"
+    desc: "Upgrade your Talos version to 1.7.6"
     env:
-      TALOS_VERSION: 1.7.5
+      TALOS_VERSION: 1.7.6
     cmds:
       - echo "Change Talos version to $TALOS_VERSION"
       - sed -i 's/1.7.4/'"$TALOS_VERSION"'/g' compose.yaml 
       - |
         gum spin --show-error --title="Upgrading Controlplane..." -- \
-        docker compose up -d talos-cp && echo "Waiting for the Controlplane node to be Ready..." && while ! kubectl get nodes talos-cp -o jsonpath='{.status.nodeInfo.osImage}' 2> /dev/null | grep -q '1.7.5' ; do sleep 5; done
+        docker compose up -d talos-cp && echo "Waiting for the Controlplane node to be Ready..." && while ! kubectl get nodes talos-cp -o jsonpath='{.status.nodeInfo.osImage}' 2> /dev/null | grep -q $TALOS_VERSION ; do sleep 5; done
       - echo "Upgrade of Controlplane completed!"
       - |
         gum spin --show-error --title="Upgrading Worker..." -- \
-        docker compose up -d talos-worker && echo "Waiting for the Worker node to be Ready..." && while ! kubectl get nodes talos-worker -o jsonpath='{.status.nodeInfo.osImage}' 2> /dev/null | grep -q '1.7.5'; do sleep 5; done
+        docker compose up -d talos-worker && echo "Waiting for the Worker node to be Ready..." && while ! kubectl get nodes talos-worker -o jsonpath='{.status.nodeInfo.osImage}' 2> /dev/null | grep -q $TALOS_VERSION; do sleep 5; done
       - echo "Upgrade of Worker completed!" 
 
   upgrade-k8s:
@@ -131,7 +131,7 @@ tasks:
     desc: "Reset the Talos-Workshop without confimation"
     cmds:
       - task: stop-talos
-      - gum spin --show-error --title="Deleting Docker volumes..." -- docker volume rm $(docker volume ls -q | grep talos)
+      - gum spin --title="Deleting Docker volumes..." -- docker volume rm $(docker volume ls --filter=name=talos -q) || true
       - echo "Docker volumes deleted"
       - gum spin --show-error --title="Restoring original compose.yaml..." -- git restore compose.yaml
       - echo "compose.yaml restored"
